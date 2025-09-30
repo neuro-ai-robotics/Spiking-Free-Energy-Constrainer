@@ -1,4 +1,4 @@
-# Codebase for Spiking Active Inference Controller
+# Codebase for Spiking Free Energy Constrainer and other Spiking Active Inference Methods
 
 ### A few files that "build" the simulations and their corresponding visualizations:
 - PlantClass has the definitions of the linear dynamical systems and their respective plants
