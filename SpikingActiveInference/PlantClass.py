@@ -2,15 +2,14 @@ import numpy as np
 rng = np.random.default_rng()
 
 class Plant:
-    def __init__(self, system='SMD', N=5, v_n = 0.0001, v_d = 0.0001):
+    def __init__(self, system='SMD', N=5, v_obs = 0.0001, v_ctrl = 0.0001):
         """
         Parameters:
           dt: time step.
           Time: total simulation time.
           system: system type ('2D_masses';
                                'SMD';
-                               'coupledSMD';
-                               'cartpole').
+                               'coupledSMD').
         """
 
         self.system = system
@@ -27,7 +26,7 @@ class Plant:
         else:
             raise ValueError("Unknown system type")
         
-        self.set_noise(v_d, v_n)
+        self.set_noise(v_obs, v_ctrl)
 
 ####################################### Helper Functions #######################################
     def _make_A(self, N, k, drag):
@@ -52,9 +51,9 @@ class Plant:
         A[11, :] = 0
         return A
     
-    def set_noise(self, V_d, V_n):
-        self.V_d = V_d*np.eye(self.x_k)
-        self.V_n = V_n*np.eye(self.y_k)
+    def set_noise(self, V_obs, V_ctrl):
+        self.V_obs = V_obs*np.eye(self.y_k)
+        self.V_ctrl = V_ctrl*np.eye(self.x_k)
 
 ####################################### f functions for system dynamics #######################################
 
@@ -210,11 +209,11 @@ class Plant:
         k4 = self.f(x + dt * k3, u)
         x = x + (dt / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
 
-        x = x + np.sqrt(dt) * rng.multivariate_normal(np.zeros(self.x_k), self.V_n)
+        x = x + np.sqrt(dt) * rng.multivariate_normal(np.zeros(self.x_k), self.V_ctrl)
 
         if self.system == 'coupledSMD':
             x[5] = 10
             x[11] = 0
             
-        y = self.g(x) + np.sqrt(dt) * rng.multivariate_normal(np.zeros(self.y_k), self.V_d)
+        y = self.g(x) + np.sqrt(dt) * rng.multivariate_normal(np.zeros(self.y_k), self.V_obs)
         return x, y

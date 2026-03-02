@@ -154,5 +154,5 @@ class Simulator_Animation:
 
 T = 30
 linear_systems = ['SMD', 'coupledSMD', '2D_masses']
-simulator = Simulator_Animation(T, system_type = linear_systems[0], controller_type = 'SCN')
+simulator = Simulator_Animation(T, system_type = linear_systems[1], controller_type = 'SCN')
 simulator.run()

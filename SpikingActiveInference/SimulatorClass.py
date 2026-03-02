@@ -18,13 +18,13 @@ class Simulator_Basic:
         self.Nt = int(T/self.dt)
         self.time = np.arange(0, self.T, self.dt)
 
-        noise_obs  = 1/ 10000
-        noise_ctrl = 1/ 10000
+        noise_obs  = 10**(-4)
+        noise_ctrl = 10**(-4)
 
         if system_type == '2D_masses':
             N = 3
             self.system = Plant('2D_masses', N)
-            self.system.set_noise(noise_ctrl, noise_obs)
+            self.system.set_noise(noise_obs, noise_ctrl)
 
             target = np.zeros([self.Nt, len(self.system.x0)])
             for i in range(N):
@@ -50,28 +50,30 @@ class Simulator_Basic:
             N = 3
             self.system = Plant('2D_masses', N)
             self.system.system = '2D_masses_different'
-            self.system.set_noise(noise_ctrl, noise_obs)
+            self.system.set_noise(noise_obs, noise_ctrl)
 
-            self.system.x0[0] = 1
+            self.system.x0[0] = -1
             self.system.x0[1] = 2
-            self.system.x0[2] = 3
+            self.system.x0[2] = -3
             self.system.x0[3] = 4
-            self.system.x0[4] = 5
+            self.system.x0[4] = -5
             self.system.x0[5] = 6
 
             self.target = np.zeros((self.Nt, 4))
             w = 3
+            radius = 1
             phi = np.pi
-            self.target[:, 0] = np.sin(np.linspace(phi, w*np.pi + phi, self.Nt))
-            self.target[:, 1] = np.cos(np.linspace(phi, w*np.pi + phi, self.Nt))
-            self.target[:, 2] = w*np.pi*np.cos(np.linspace(phi, w*np.pi + phi, self.Nt))
-            self.target[:, 3] = -w*np.pi*np.sin(np.linspace(phi, w*np.pi + phi, self.Nt))
+            self.target[:, 0] = radius*np.sin(np.linspace(phi, w*np.pi + phi, self.Nt))
+            self.target[:, 1] = radius*np.cos(np.linspace(phi, w*np.pi + phi, self.Nt))
+            self.target[:, 2] = radius*10*w*np.pi*np.cos(np.linspace(phi, w*np.pi + phi, self.Nt))
+            self.target[:, 3] = radius*-10*w*np.pi*np.sin(np.linspace(phi, w*np.pi + phi, self.Nt))
 
             y0 = np.concatenate([self.target[0], self.system.x0])
 
         elif system_type == 'SMD':
             self.system = Plant('SMD')
-            self.system.set_noise(noise_ctrl, noise_obs)
+            self.system.set_noise(noise_obs, noise_ctrl)
+
 
             self.target = np.zeros([self.Nt, len(self.system.x0)])
             self.target[:10000, 0] = 2
@@ -87,7 +89,7 @@ class Simulator_Basic:
 
         elif system_type == 'coupledSMD':
             self.system = Plant('coupledSMD')
-            self.system.set_noise(noise_ctrl, noise_obs)
+            self.system.set_noise(noise_obs, noise_ctrl)
 
             dims = int(len(self.system.x0)/2)
             self.target = np.zeros([self.Nt, len(self.system.x0)])
@@ -485,18 +487,21 @@ class Simulator_Compare_Noise:
         return output_list
         
     def run_compare(self):
-        noise_ctrls = np.array([0.01, 0.03, 0.1, 0.3, 1,  3,  10,  30,  100,  300,  1000, 3000])/10000
-        noise_obs =   np.array([0.1,  0.3,  1,   3,   10, 30, 100, 300, 1000, 3000, 10000, 30000])/10000
-        MSE_heatmap = np.zeros((12, 12))
-        for i in range(12):
-            for j in range(12):
-                values = self.run_controller(noise_ctrl=noise_ctrls[i], noise_obs=noise_obs[j])
+        noise_ctrls = np.array([10**(-4), 10**(-3.66), 10**(-3.33), 10**(-3), 10**(-2.66), 10**(-2.33), 10**(-2), 10**(-1.66), 10**(-1.33),10**(-1), 10**(-0.66), 10**(-0.33), 10**(0)])
+        noise_obs =   np.array([10**(-1), 10**(-0.5), 10**(0), 10**(0.5), 10**(1), 10**(1.5), 10**(2), 10**(2.5), 10**(3)])
+        MSE_heatmap = np.zeros((13, 9))
+        for i in range(13):
+            for j in range(9):
+                values = self.run_controller(noise_obs=noise_obs[j], noise_ctrl=noise_ctrls[i])
+
                 x = values[0]
                 t = values[4]
                 error = x[:self.Nt] - t[:self.Nt]
                 error_norm = np.linalg.norm(error, axis=1)
                 MSE = np.mean(error_norm, axis=0)
+                
                 MSE_heatmap[i, j] = MSE
-            print('---- ', 12*i+j+1, '/144 completed')
+
+            print('---- ', 9*i+j+1, '/117 completed')
 
         return MSE_heatmap, np.array(noise_ctrls), np.array(noise_obs)

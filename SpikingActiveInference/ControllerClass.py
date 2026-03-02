@@ -3,6 +3,9 @@ import control as ctrl
 import nengo
 rng = np.random.default_rng()
 
+N_neurons = 200
+
+
 class LQR:
     def __init__(self, system):
         self.A = system.A_lin
@@ -66,7 +69,7 @@ class ActInf:
             self.mu_k = 4*dims
 
             k = 5
-            c = 10
+            c = 5
 
             A_ideal = np.zeros((self.mu_k, self.mu_k))
 
@@ -173,7 +176,7 @@ class SCN:
             dims = int(self.x_k/2)
             self.mu_k = 4*dims
 
-            k = 10
+            k = 5
             c = 5
 
             A_ideal = np.zeros((self.mu_k, self.mu_k))
@@ -193,18 +196,16 @@ class SCN:
             self.A[2*dims:, 2*dims:] = system.A_lin
             self.A_dif = self.A_ideal - self.A
 
-            self.N = 200
+            self.N = N_neurons
             D = np.zeros([size, self.N])
 
             for i in range(self.mu_k):
-                D[i, 4*i] = 1
-                D[i, 4*i+1] = -1
-                D[i, 4*i+2] = 1
-                D[i, 4*i+3] = -1
-            for i in range(4*self.mu_k, self.N):
+                D[i, 2*i] = 1
+                D[i, 2*i+1] = -1
+            for i in range(2*self.mu_k, self.N):
                 D[:, i] = rng.normal(0, 1, self.mu_k)
             shuffled_indices = np.random.permutation(self.N)
-            self.D = D[:, shuffled_indices]/(0.2*self.N)
+            self.D = D[:, shuffled_indices]/(0.1*self.N)
 
             self.Targ = np.zeros([self.mu_k, self.mu_k])
             self.Targ[2*dims:, :2*dims] = np.eye(2*dims)
@@ -216,15 +217,16 @@ class SCN:
             self.z_k = 4
             self.y_k = system.y_k + self.z_k
             # Make a matrix A_ideal with spring dynamics connecting each mass to the "target mass" (the zeroth mass)
-            self.A_ideal = self.make_different_dynamics(N, k_goal=5, k_form=5, c=5)
+            k_form = 1
+            self.A_ideal = self.make_different_dynamics(N, k_goal=5, k_form=k_form, c=5)
             size = len(self.A_ideal)
 
-            A_form = self.make_different_dynamics(N, k_goal=0, k_form=5, c=5)
+            A_form = self.make_different_dynamics(N, k_goal=0, k_form=k_form, c=5)
             x_form = np.zeros(4*(N+1))
             x_form[:4] = 0
             for i in range(N):
-                x_form[4+2*i] = 3*np.cos(2*np.pi*i/N)
-                x_form[4+2*i+1] = 3*np.sin(2*np.pi*i/N)
+                x_form[4+2*i] = 5*np.cos(2*np.pi*i/N)
+                x_form[4+2*i+1] = 5*np.sin(2*np.pi*i/N)
                 x_form[4+2*N+2*i] = 0
                 x_form[4+2*N+2*i+1] = 0
             
@@ -239,11 +241,9 @@ class SCN:
             self.N = 200
             D = np.zeros([size, self.N])
             for i in range(self.mu_k):
-                D[i, 4*i] = 1
-                D[i, 4*i+1] = -1
-                D[i, 4*i+2] = 1
-                D[i, 4*i+3] = -1
-            for i in range(4*self.mu_k, self.N):
+                D[i, 2*i] = 1
+                D[i, 2*i+1] = -1
+            for i in range(2*self.mu_k, self.N):
                 D[:, i] = rng.normal(0, 1, self.mu_k)
             shuffled_indices = np.random.permutation(self.N)
             self.D = D[:, shuffled_indices]/(0.1*self.N)
@@ -278,11 +278,9 @@ class SCN:
             self.N = 32
             D = np.zeros([size, self.N])
             for i in range(self.mu_k):
-                D[i, 4*i] = 1
-                D[i, 4*i+1] = -1
-                D[i, 4*i+2] = 1
-                D[i, 4*i+3] = -1
-            for i in range(4*self.mu_k, self.N):
+                D[i, 2*i] = 1
+                D[i, 2*i+1] = -1
+            for i in range(2*self.mu_k, self.N):
                 D[:, i] = rng.normal(0, 1, self.mu_k)
             shuffled_indices = np.random.permutation(self.N)
             self.D = D[:, shuffled_indices]/(1*self.N)
@@ -316,9 +314,11 @@ class SCN:
 
             self.N = size*10
             D = np.zeros([size, self.N])
-            for i in range(5):
+            for i in range(2):
                 D[:, size*(2*i):size*(2*i+1)] = np.eye(size)
                 D[:, size*(2*i+1):size*(2*i+2)] = -np.eye(size)
+            for i in range(4*self.mu_k, self.N):
+                D[:, i] = rng.normal(0, 1, self.mu_k)
             shuffled_indices = np.random.permutation(self.N)
             self.D = D[:, shuffled_indices]/(0.1*self.N)
 
@@ -334,23 +334,41 @@ class SCN:
         size = len(self.A_ideal)
         self.C = np.eye(self.y_k)
 
+        self.v = np.zeros(self.N)
+        self.r = np.zeros(self.N)
+        self.s = np.zeros(self.N)
+        self.tau = 0.0
+
+        self.r_adapt = np.zeros(self.N)
+        self.lambda_adapt = 0.1
+        self.y_prev = np.zeros(self.y_k)
+
         #Make H matrix
         self.eps_size = 2*self.y_k
         self.H = np.zeros((self.eps_size, self.y_k))    
         self.H[:self.y_k, :] = self.C
-        self.H[:self.y_k, :] = np.eye(self.y_k) #- self.Targ
+        self.H[self.y_k:, :] = np.eye(self.y_k)
+
 
         self.S = np.zeros((self.eps_size, size))
-        self.S[self.y_k:, :] = self.A_ideal # + self.Targ
+        self.S[self.y_k:, :] = self.A_ideal
+        self.S += self.tau*self.H
 
+        aux = np.zeros((self.eps_size, size))
+        aux[self.y_k:, :] = np.eye(size)
+
+        Pu = 1
+        Py = 10
         self.P = np.eye(self.eps_size)
-        self.P[:self.y_k, :self.y_k] = 10*np.eye(self.y_k)
+        self.P[:self.y_k, :self.y_k] = Py*np.eye(self.y_k)
+        self.P[self.y_k:, self.y_k:] = Pu*np.eye(self.eps_size - self.y_k)
 
         input_matrix = np.zeros((self.eps_size, self.y_k))
         input_matrix[:self.y_k, :] = np.eye(self.y_k)
 
         self.O_input = self.D.T@self.H.T@self.P@input_matrix
         self.O_slow = self.D.T@self.H.T@self.P@self.S@self.D
+        self.O_u_form = self.D.T@self.H.T@self.P@aux@self.B
         self.O_fast = self.D.T@self.H.T@self.P@self.H@self.D
         self.O_fast_use = self.O_fast
 
@@ -358,14 +376,6 @@ class SCN:
         self.Thr *= 2
 
         self.alive = np.ones(self.N)
-
-        self.v = np.zeros(self.N)
-        self.r = np.zeros(self.N)
-        self.s = np.zeros(self.N)
-
-        self.r_adapt = np.zeros(self.N)
-        self.lambda_adapt = 0.1
-        self.y_prev = np.zeros(self.y_k)
 
         self.mu = self.D@self.r
 
@@ -435,7 +445,7 @@ class SCN:
     def kill(self):
         self.alive = np.ones(self.N)
         for i in range(int(self.N/4)):
-            self.alive[4*i] = 0
+            self.alive[i] = 0
 
     def set_voltage_noise(self, noise):
         self.sig2 = noise
@@ -466,10 +476,12 @@ class SCN:
                            + dt*self.O_slow@self.r 
                            - self.O_fast_use@s_delay 
                            + self.sig2*rng.normal(0, 1, self.N)*np.sqrt(dt))
+        if self.system.system == '2D_masses_different':
+            self.v = self.v + dt*self.O_u_form@self.form_term
 
         self.v = self.v*self.alive
 
-        self.r = self.r + s_delay
+        self.r = (1-dt*self.tau)*self.r + s_delay
 
         self.s = np.zeros(len(self.s))
         Thr = self.Thr + self.r_adapt
@@ -509,7 +521,7 @@ class ActInf_SCN:
             dims = int(self.x_k/2)
             self.mu_k = 4*dims
 
-            k = 10
+            k = 5
             c = 5
 
             A_ideal = np.zeros((self.mu_k, self.mu_k))
@@ -533,7 +545,7 @@ class ActInf_SCN:
             dims = 1
             self.mu_k = 4
 
-            k_ideal = 5
+            k_ideal = 10
             c_ideal = 5
 
             A_ideal = np.array([[       0,       0,        0,        0],
@@ -554,7 +566,7 @@ class ActInf_SCN:
             self.mu_k = 4*dims
 
             k = 10
-            c = 15
+            c = 5
 
             A_ideal = np.zeros((self.mu_k, self.mu_k))
 
@@ -583,13 +595,13 @@ class ActInf_SCN:
         self.Targ[:2*dims, :2*dims] = np.eye(2*dims)
 
         self.Py = 10
-        self.Pu = 10
+        self.Pu = 1
 
         self.u = np.zeros(self.u_k)
 
         self.mu = np.zeros(self.mu_k)
 
-        self.N = 200
+        self.N = N_neurons
         self.tau = 0.1
 
         self.v = np.zeros(self.N)
@@ -600,15 +612,14 @@ class ActInf_SCN:
         self.lambda_adapt = 0.1
 
         self.D = np.zeros((self.mu_k, self.N))
+
         for i in range(self.mu_k):
-            self.D[i, 2*i] = 1
-            self.D[i, 2*i+1] = -1
-            #self.D[i, 4*i+2] = 1
-            #self.D[i, 4*i+3] = -1
+                self.D[i, 2*i] = 1
+                self.D[i, 2*i+1] = -1
         for i in range(2*self.mu_k, self.N):
             self.D[:, i] = rng.normal(0, 1, self.mu_k)
-
-        self.D = self.D/(0.1*self.N)
+        shuffled_indices = np.random.permutation(self.N)
+        self.D = self.D[:, shuffled_indices]/(0.1*self.N)
 
         self.O_mu = self.Pu*self.Targ - self.Pu*np.eye(self.mu_k) - self.Py*np.eye(self.mu_k)
 
@@ -618,8 +629,8 @@ class ActInf_SCN:
 
         self.Omega_fast = -self.D.T@self.D
 
-        self.Thr = np.diag(self.Omega_fast)/2
-        #self.Thr *= 2
+        self.Thr = -np.diag(self.Omega_fast)/2
+        self.Thr *= 2
 
     def update(self, y, target, dt):
         y_plus = np.concatenate([target, y])
@@ -658,8 +669,8 @@ class ActInf_Nengo:
             dims = int(self.x_k/2)
             self.mu_k = 4*dims
 
-            k = 10 
-            c = 15
+            k = 5
+            c = 5
 
             A_ideal = np.zeros((self.mu_k, self.mu_k))
 
@@ -721,7 +732,7 @@ class ActInf_Nengo:
             self.mu_k = 4*dims
 
             k = 10
-            c = 15
+            c = 5
 
             A_ideal = np.zeros((self.mu_k, self.mu_k))
 
@@ -762,7 +773,7 @@ class ActInf_Nengo:
 
         self.mu = np.zeros(self.mu_k)
 
-        self.N = 200
+        self.N = N_neurons
 
         self.spike_data = np.zeros(self.N)
 
@@ -819,4 +830,4 @@ class ActInf_Nengo:
         mu_nengo = self.mu
         u_nengo = self.U@mu_nengo
 
-        return mu_nengo, u_nengo, spikes
+        return mu_nengo, u_nengo, spikes/1000
