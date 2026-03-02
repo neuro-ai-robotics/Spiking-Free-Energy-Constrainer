@@ -9,5 +9,4 @@
 
 ### Furthermore, the Scripts that can be run to actually get the results:
 - Script.py produces all the main plots and the table for the paper
-- ScriptSupplementary.py produces the supplementary plots for the Appendices
 - ScriptAnimation.py produces an animated window showing a live simulation of the system (some or all of it may be broken)
